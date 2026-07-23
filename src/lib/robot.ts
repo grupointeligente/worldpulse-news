@@ -110,6 +110,40 @@ function isValidImageUrl(url: string): boolean {
   return imageExtensions.test(url) || cdnPattern.test(url)
 }
 
+async function extractOgImage(articleUrl: string): Promise<string | null> {
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 5000)
+    const res = await fetch(articleUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; WorldPulse/1.0; +https://newsbot-cyan.vercel.app)',
+        'Accept': 'text/html',
+      },
+    })
+    clearTimeout(timeout)
+    if (!res.ok) return null
+    // Read only first 20KB to find og:image in <head>
+    const reader = res.body?.getReader()
+    if (!reader) return null
+    let html = ''
+    while (html.length < 20000) {
+      const { done, value } = await reader.read()
+      if (done) break
+      html += new TextDecoder().decode(value)
+      if (html.includes('</head>')) break
+    }
+    reader.cancel().catch(() => {})
+    const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+              || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+    const candidate = match?.[1]
+    if (candidate && isValidImageUrl(candidate)) return candidate
+  } catch {
+    // timeout or network error — silently skip
+  }
+  return null
+}
+
 function cleanText(text?: string): string {
   if (!text) return ''
   return text
@@ -157,11 +191,12 @@ RULES:
 1. Summaries must be ORIGINAL TEXT — do NOT copy from the source. Write in your own words.
 2. PT summary: 300-500 words in Brazilian Portuguese, journalistic tone.
 3. EN summary: 300-500 words in American English, journalistic tone.
-4. Relevance score 1-10: global importance, reader interest, timeliness.
-5. Breaking = true only for major urgent events (disasters, elections results, major deaths, wars).
-6. Tags: 3-6 keywords in English, lowercase.
-7. SEO titles: max 60 chars. Meta descriptions: 150-160 chars.
-8. Slug: English words, no accents, hyphens only.
+4. PARAGRAPH STRUCTURE (mandatory): split each summary into 3-5 short paragraphs separated by a blank line (use "\\n\\n" inside the JSON string). Paragraph 1 = strong lead (who/what/when/where). Middle paragraphs = development and details. Final paragraph = context or outlook. NEVER return a single-block summary.
+5. Relevance score 1-10: global importance, reader interest, timeliness.
+6. Breaking = true only for major urgent events (disasters, elections results, major deaths, wars).
+7. Tags: 3-6 keywords in English, lowercase.
+8. SEO titles: max 60 chars. Meta descriptions: 150-160 chars.
+9. Slug: English words, no accents, hyphens only.
 
 Respond ONLY with valid JSON, no markdown, no explanation.`
 
@@ -191,7 +226,7 @@ Return JSON with this exact structure:
   try {
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',  // rápido e barato para volume alto
-      max_tokens: 1500,
+      max_tokens: 2500,  // espaço para 2 resumos de 300-500 palavras com parágrafos
       messages: [{ role: 'user', content: userPrompt }],
       system: systemPrompt,
     })
@@ -255,6 +290,13 @@ async function processItem(item: RSSItem, source: { id: string; name: string; la
   const status = autoPublish ? 'published' : 'pending'
   const publishedAt = autoPublish ? new Date().toISOString() : null
 
+  // Extrai imagem: tenta RSS primeiro, depois OG tag da página
+  const rssImage = extractImage(item)
+  const imageUrl = rssImage || await extractOgImage(url)
+  if (imageUrl) {
+    console.log(`  Image: ${imageUrl.slice(0, 80)} (${rssImage ? 'rss' : 'og'})`)
+  }
+
   // Salva no Supabase
   const { error } = await supabase.from('articles').insert({
     title_pt: processed.title_pt,
@@ -272,7 +314,7 @@ async function processItem(item: RSSItem, source: { id: string; name: string; la
     source_id: source.id,
     original_lang: source.language,
     category_id: categoryId,
-    image_url: extractImage(item),
+    image_url: imageUrl,
     relevance_score: processed.relevance_score,
     breaking: processed.breaking,
     featured: autoFeatured,
