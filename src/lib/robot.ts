@@ -345,6 +345,7 @@ export async function runRobot(options: { maxSources?: number; maxItemsPerSource
     .select('id, name, url, rss_url, language, priority')
     .eq('active', true)
     .order('priority', { ascending: true })
+    .order('last_fetched', { ascending: true, nullsFirst: true })  // rodízio: menos buscadas primeiro
     .limit(maxSources)
 
   if (sourcesErr || !sources?.length) {
