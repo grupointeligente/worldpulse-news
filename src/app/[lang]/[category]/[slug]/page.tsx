@@ -3,10 +3,10 @@ import type { Metadata } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase'
-import { getCategoryBySlug, formatTimeAgo, type Lang } from '@/lib/categories'
+import { CATEGORIES, getCategoryBySlug, formatTimeAgo, type Lang } from '@/lib/categories'
 import ArticleCard from '@/components/news/ArticleCard'
 import type { Article } from '@/lib/supabase'
-import { ExternalLink, Clock, Globe } from 'lucide-react'
+import { ExternalLink, Clock, Globe, ChevronRight } from 'lucide-react'
 
 export async function generateMetadata({
   params,
@@ -68,7 +68,7 @@ async function getArticle(slug: string) {
   return data as Article | null
 }
 
-async function getRelated(categorySlug: string, currentSlug: string, lang: Lang): Promise<Article[]> {
+async function getRelated(categorySlug: string, currentSlug: string): Promise<Article[]> {
   const supabase = createServerClient()
   const { data } = await supabase
     .from('articles_with_stats')
@@ -76,8 +76,38 @@ async function getRelated(categorySlug: string, currentSlug: string, lang: Lang)
     .eq('category_slug', categorySlug)
     .neq('slug', currentSlug)
     .order('published_at', { ascending: false })
-    .limit(4)
+    .limit(8)
   return (data || []) as Article[]
+}
+
+async function getMoreFromCategory(categorySlug: string, currentSlug: string): Promise<Article[]> {
+  const supabase = createServerClient()
+  const { data } = await supabase
+    .from('articles_with_stats')
+    .select('*')
+    .eq('category_slug', categorySlug)
+    .neq('slug', currentSlug)
+    .order('published_at', { ascending: false })
+    .range(8, 19) // artigos 9-20 da categoria
+  return (data || []) as Article[]
+}
+
+async function getOtherCategories(categorySlug: string, lang: Lang): Promise<{ cat: typeof CATEGORIES[0]; articles: Article[] }[]> {
+  const supabase = createServerClient()
+  // Pega 3 outras categorias com artigos recentes
+  const otherCats = CATEGORIES.filter(c => c.slug !== categorySlug).slice(0, 4)
+  const results = await Promise.all(
+    otherCats.map(async (cat) => {
+      const { data } = await supabase
+        .from('articles_with_stats')
+        .select('*')
+        .eq('category_slug', cat.slug)
+        .order('published_at', { ascending: false })
+        .limit(4)
+      return { cat, articles: (data || []) as Article[] }
+    })
+  )
+  return results.filter(r => r.articles.length > 0)
 }
 
 export default async function ArticlePage({
@@ -92,7 +122,12 @@ export default async function ArticlePage({
   const article = await getArticle(slug)
   if (!article) notFound()
 
-  const related = await getRelated(category, slug, lang)
+  const [related, moreFromCategory, otherCategorySections] = await Promise.all([
+    getRelated(category, slug),
+    getMoreFromCategory(category, slug),
+    getOtherCategories(category, lang),
+  ])
+
   const cat = getCategoryBySlug(category)
 
   const isPt = lang === 'pt'
@@ -105,6 +140,7 @@ export default async function ArticlePage({
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* ── Main article + sidebar ─────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         {/* Main article */}
         <article className="lg:col-span-2">
@@ -165,7 +201,6 @@ export default async function ArticlePage({
               <ExternalLink size={13} />
               {isPt ? 'Ver original' : 'View original'}
             </a>
-            {/* Language switcher */}
             <Link
               href={`/${lang === 'pt' ? 'en' : 'pt'}/${category}/${slug}`}
               className="flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors ml-auto"
@@ -228,13 +263,23 @@ export default async function ArticlePage({
 
         {/* Sidebar */}
         <aside className="lg:col-span-1">
-          <div className="sticky top-28">
+          <div className="sticky top-28 space-y-6">
+            {/* Related articles */}
             {related.length > 0 && (
               <div>
-                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                  <div className="w-1 h-5 rounded-full" style={{ backgroundColor: cat?.color || '#ef4444' }} />
-                  {isPt ? 'Veja também' : 'Related news'}
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                    <div className="w-1 h-5 rounded-full" style={{ backgroundColor: cat?.color || '#ef4444' }} />
+                    {isPt ? 'Veja também' : 'Related news'}
+                  </h3>
+                  <Link
+                    href={`/${lang}/${category}`}
+                    className="text-xs font-medium flex items-center gap-0.5 hover:opacity-80"
+                    style={{ color: cat?.color || '#ef4444' }}
+                  >
+                    {isPt ? 'Ver tudo' : 'See all'} <ChevronRight size={13} />
+                  </Link>
+                </div>
                 <div className="space-y-0">
                   {related.map(a => (
                     <ArticleCard key={a.id} article={a} lang={lang} size="sm" />
@@ -244,7 +289,7 @@ export default async function ArticlePage({
             )}
 
             {/* AdSense placeholder */}
-            <div className="mt-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400">
+            <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-4 text-center text-xs text-slate-400">
               📢 {isPt ? 'Espaço para anúncio' : 'Ad space'}
               <br />Google AdSense
             </div>
@@ -252,7 +297,67 @@ export default async function ArticlePage({
         </aside>
       </div>
 
-      {/* JSON-LD — Article structured data (crítico para SEO) */}
+      {/* ── Mais da mesma categoria ─────────────────────────── */}
+      {moreFromCategory.length > 0 && (
+        <section className="mt-14 pt-8 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+              <div className="w-1 h-6 rounded-full" style={{ backgroundColor: cat?.color || '#ef4444' }} />
+              {isPt ? `Mais em ${catName}` : `More in ${catName}`}
+            </h2>
+            <Link
+              href={`/${lang}/${category}`}
+              className="text-sm font-semibold flex items-center gap-1 hover:opacity-80 transition-opacity"
+              style={{ color: cat?.color || '#ef4444' }}
+            >
+              {isPt ? 'Ver todos' : 'See all'} <ChevronRight size={15} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {moreFromCategory.slice(0, 8).map(a => (
+              <ArticleCard key={a.id} article={a} lang={lang} size="md" />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Outras editorias ─────────────────────────────────── */}
+      {otherCategorySections.length > 0 && (
+        <section className="mt-14 pt-8 border-t border-slate-100">
+          <h2 className="text-xl font-black text-slate-900 mb-8">
+            {isPt ? '📰 Outras editorias' : '📰 More sections'}
+          </h2>
+          <div className="space-y-10">
+            {otherCategorySections.map(({ cat: otherCat, articles }) => {
+              const otherCatName = isPt ? otherCat.name_pt : otherCat.name_en
+              return (
+                <div key={otherCat.slug}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                      <div className="w-1 h-5 rounded-full" style={{ backgroundColor: otherCat.color }} />
+                      {otherCat.icon} {otherCatName}
+                    </h3>
+                    <Link
+                      href={`/${lang}/${otherCat.slug}`}
+                      className="text-xs font-medium flex items-center gap-0.5 hover:opacity-80"
+                      style={{ color: otherCat.color }}
+                    >
+                      {isPt ? 'Ver tudo' : 'See all'} <ChevronRight size={13} />
+                    </Link>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {articles.map(a => (
+                      <ArticleCard key={a.id} article={a} lang={lang} size="md" />
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* JSON-LD */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

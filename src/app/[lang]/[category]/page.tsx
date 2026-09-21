@@ -1,11 +1,13 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase'
 import { CATEGORIES, getCategoryBySlug, type Lang } from '@/lib/categories'
 import ArticleCard from '@/components/news/ArticleCard'
 import type { Article } from '@/lib/supabase'
+import { ChevronRight } from 'lucide-react'
 
-export const revalidate = 30 // ISR: revalida a cada 30 segundos
+export const revalidate = 30
 
 export async function generateStaticParams() {
   return ['pt', 'en'].flatMap(lang =>
@@ -44,17 +46,35 @@ export async function generateMetadata({
   }
 }
 
-async function getCategoryArticles(categorySlug: string, page = 1): Promise<Article[]> {
+async function getCategoryArticles(categorySlug: string): Promise<Article[]> {
   const supabase = createServerClient()
-  const pageSize = 24
-  const from = (page - 1) * pageSize
   const { data } = await supabase
     .from('articles_with_stats')
     .select('*')
     .eq('category_slug', categorySlug)
     .order('published_at', { ascending: false })
-    .range(from, from + pageSize - 1)
+    .limit(40)
   return (data || []) as Article[]
+}
+
+async function getOtherCategoryArticles(
+  excludeSlug: string,
+  lang: Lang
+): Promise<{ cat: typeof CATEGORIES[0]; articles: Article[] }[]> {
+  const supabase = createServerClient()
+  const otherCats = CATEGORIES.filter(c => c.slug !== excludeSlug).slice(0, 3)
+  const results = await Promise.all(
+    otherCats.map(async (cat) => {
+      const { data } = await supabase
+        .from('articles_with_stats')
+        .select('*')
+        .eq('category_slug', cat.slug)
+        .order('published_at', { ascending: false })
+        .limit(4)
+      return { cat, articles: (data || []) as Article[] }
+    })
+  )
+  return results.filter(r => r.articles.length > 0)
 }
 
 export default async function CategoryPage({
@@ -69,14 +89,24 @@ export default async function CategoryPage({
   const cat = getCategoryBySlug(category)
   if (!cat) notFound()
 
-  const articles = await getCategoryArticles(category)
+  const [articles, otherSections] = await Promise.all([
+    getCategoryArticles(category),
+    getOtherCategoryArticles(category, lang),
+  ])
+
   const isPt = lang === 'pt'
   const catName = isPt ? cat.name_pt : cat.name_en
   const siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'WorldPulse'
 
+  // Layout slices
+  const heroArticle = articles[0]
+  const featuredStrip = articles.slice(1, 5)    // 4 cards lado a lado
+  const secondaryStrip = articles.slice(5, 9)   // mais 4
+  const gridArticles = articles.slice(9)         // resto em grid
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Category header */}
+      {/* ── Category header ─────────────────────────────── */}
       <div className="mb-8 pb-6 border-b border-slate-100">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-1.5 h-10 rounded-full" style={{ backgroundColor: cat.color }} />
@@ -89,6 +119,11 @@ export default async function CategoryPage({
                 : `${catName} news updated in real time`}
             </p>
           </div>
+          {articles.length > 0 && (
+            <span className="ml-auto text-sm text-slate-400">
+              {articles.length}{isPt ? ' artigos' : ' articles'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -103,26 +138,104 @@ export default async function CategoryPage({
         </div>
       ) : (
         <>
-          {/* Hero + grid */}
-          <div className="mb-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              <div className="lg:col-span-2">
-                <ArticleCard article={articles[0]} lang={lang} size="lg" />
+          {/* ── Hero + 4 artigos principais ──────────────── */}
+          {heroArticle && (
+            <section className="mb-8">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Hero grande */}
+                <div className="lg:col-span-2">
+                  <ArticleCard article={heroArticle} lang={lang} size="hero" />
+                </div>
+                {/* Strip de 3 na coluna direita */}
+                <div className="flex flex-col gap-4">
+                  {featuredStrip.slice(0, 3).map(a => (
+                    <ArticleCard key={a.id} article={a} lang={lang} size="sm" showImage />
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-col gap-4">
-                {articles.slice(1, 4).map(a => (
-                  <ArticleCard key={a.id} article={a} lang={lang} size="sm" />
+            </section>
+          )}
+
+          {/* ── Segunda faixa: 4 cards médios ────────────── */}
+          {featuredStrip.length > 3 && (
+            <section className="mb-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[featuredStrip[3], ...secondaryStrip].slice(0, 4).map(a => (
+                  <ArticleCard key={a.id} article={a} lang={lang} size="lg" />
                 ))}
               </div>
-            </div>
-          </div>
+            </section>
+          )}
 
-          {/* Rest in grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {articles.slice(4).map(article => (
-              <ArticleCard key={article.id} article={article} lang={lang} size="md" />
-            ))}
-          </div>
+          {/* ── Terceira faixa: mais 4 cards médios ─────── */}
+          {secondaryStrip.length > 0 && (
+            <section className="mb-8">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-1 h-5 rounded-full" style={{ backgroundColor: cat.color }} />
+                <h2 className="font-bold text-slate-900">
+                  {isPt ? 'Mais recentes' : 'Latest'}
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {secondaryStrip.slice(1).map(a => (
+                  <ArticleCard key={a.id} article={a} lang={lang} size="md" />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── Grid principal: restante ──────────────────── */}
+          {gridArticles.length > 0 && (
+            <section className="mb-12">
+              <div className="flex items-center gap-3 mb-5 pt-4 border-t border-slate-100">
+                <div className="w-1 h-5 rounded-full bg-slate-300" />
+                <h2 className="font-bold text-slate-700">
+                  {isPt ? 'Arquivo' : 'Archive'}
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {gridArticles.map(a => (
+                  <ArticleCard key={a.id} article={a} lang={lang} size="md" />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ── Outras editorias ──────────────────────────── */}
+          {otherSections.length > 0 && (
+            <section className="mt-8 pt-8 border-t border-slate-100">
+              <h2 className="text-xl font-black text-slate-900 mb-8">
+                {isPt ? '📰 Outras editorias' : '📰 More sections'}
+              </h2>
+              <div className="space-y-10">
+                {otherSections.map(({ cat: otherCat, articles: otherArticles }) => {
+                  const otherName = isPt ? otherCat.name_pt : otherCat.name_en
+                  return (
+                    <div key={otherCat.slug}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                          <div className="w-1 h-5 rounded-full" style={{ backgroundColor: otherCat.color }} />
+                          {otherCat.icon} {otherName}
+                        </h3>
+                        <Link
+                          href={`/${lang}/${otherCat.slug}`}
+                          className="text-xs font-medium flex items-center gap-0.5 hover:opacity-80"
+                          style={{ color: otherCat.color }}
+                        >
+                          {isPt ? 'Ver tudo' : 'See all'} <ChevronRight size={13} />
+                        </Link>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {otherArticles.map(a => (
+                          <ArticleCard key={a.id} article={a} lang={lang} size="md" />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
         </>
       )}
 
