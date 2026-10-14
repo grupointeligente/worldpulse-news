@@ -21,6 +21,10 @@ const supabase = createClient(
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
 const parser = new Parser({
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (compatible; WorldPulse/1.0; +https://newsbot-cyan.vercel.app)',
+    Accept: 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.7',
+  },
   customFields: {
     item: [
       ['media:content', 'mediaContent'],
@@ -336,6 +340,9 @@ async function processItem(item: RSSItem, source: { id: string; name: string; la
 
 export async function runRobot(options: { maxSources?: number; maxItemsPerSource?: number } = {}) {
   const { maxSources = 50, maxItemsPerSource = 10 } = options
+  const startedAt = Date.now()
+  const TIME_BUDGET_MS = 240_000 // para com folga antes do timeout de 300s da Vercel
+  const budgetExceeded = () => Date.now() - startedAt > TIME_BUDGET_MS
 
   console.log(`🤖 Robot starting — ${new Date().toISOString()}`)
 
@@ -358,6 +365,10 @@ export async function runRobot(options: { maxSources?: number; maxItemsPerSource
   let pending = 0
 
   for (const source of sources) {
+    if (budgetExceeded()) {
+      console.log('⏱ Time budget atingido — encerrando com resultado parcial')
+      break
+    }
     const rssUrl = source.rss_url || source.url
     console.log(`\n📡 Fetching: ${source.name} (${rssUrl})`)
 
@@ -366,6 +377,7 @@ export async function runRobot(options: { maxSources?: number; maxItemsPerSource
       const items = feed.items.slice(0, maxItemsPerSource)
 
       for (const item of items) {
+        if (budgetExceeded()) break
         const result = await processItem(item as RSSItem, source)
         if (result) {
           processed++
