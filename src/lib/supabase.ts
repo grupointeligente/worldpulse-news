@@ -60,6 +60,7 @@ export type Article = {
   category_color?: string
   category_icon?: string
   comment_count?: number
+  view_count?: number
 }
 
 export type Comment = {

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase'
 import { CATEGORIES, getCategoryBySlug, formatTimeAgo, type Lang } from '@/lib/categories'
 import ArticleCard from '@/components/news/ArticleCard'
+import ViewTracker from '@/components/news/ViewTracker'
 import type { Article } from '@/lib/supabase'
 import { ExternalLink, Clock, Globe, ChevronRight } from 'lucide-react'
 
@@ -143,6 +144,7 @@ export default async function ArticlePage({
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <ViewTracker articleId={article.id} />
       {/* ── Main article + sidebar ─────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         {/* Main article */}

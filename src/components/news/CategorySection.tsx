@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import ArticleCard from './ArticleCard'
 import type { Article } from '@/lib/supabase'
-import type { Lang } from '@/lib/categories'
+import { getCategoryTones, type Lang } from '@/lib/categories'
 import { ArrowRight } from 'lucide-react'
 
 interface Props {
@@ -16,6 +16,7 @@ interface Props {
 export default function CategorySection({ slug, name, color, icon, articles, lang }: Props) {
   if (!articles.length) return null
 
+  const tones = getCategoryTones(slug)
   const [featured, ...rest] = articles
 
   return (
@@ -23,14 +24,14 @@ export default function CategorySection({ slug, name, color, icon, articles, lan
       {/* Section header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-1 h-6 rounded-full" style={{ backgroundColor: color }} />
+          <div className="w-1.5 h-7 rounded-full" style={{ backgroundColor: color }} />
           <span className="text-xl">{icon}</span>
-          <h2 className="text-xl font-black text-slate-900">{name}</h2>
+          <h2 className="text-[22px] font-black tracking-tight text-[#111827]">{name}</h2>
         </div>
         <Link
           href={`/${lang}/${slug}`}
-          className="flex items-center gap-1 text-sm font-semibold transition-colors"
-          style={{ color }}
+          className="flex items-center gap-1 text-[13px] font-bold px-3 py-1.5 rounded-full transition-opacity hover:opacity-80"
+          style={{ color: tones.deep, backgroundColor: tones.tint }}
         >
           {lang === 'pt' ? 'Ver tudo' : 'See all'}
           <ArrowRight size={14} />

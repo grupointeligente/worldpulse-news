@@ -33,9 +33,9 @@ export default function TickerBar({ articles, lang }: Props) {
   const doubled = [...articles, ...articles]
 
   return (
-    <div className="bg-slate-900 text-white overflow-hidden py-2">
+    <div className="bg-[#101828] border-t border-white/10 text-white overflow-hidden py-2">
       <div className="flex items-center">
-        <div className="shrink-0 bg-red-600 px-4 py-1 text-xs font-black uppercase tracking-widest z-10">
+        <div className="shrink-0 bg-[#DC2626] px-4 py-1 text-xs font-black uppercase tracking-widest z-10 rounded-r-md">
           {lang === 'pt' ? 'ÚLTIMAS' : 'LATEST'}
         </div>
         <div className="overflow-hidden flex-1">
@@ -48,7 +48,7 @@ export default function TickerBar({ articles, lang }: Props) {
                   href={`/${lang}/${a.category_slug || 'mundo'}/${a.slug}`}
                   className="text-xs text-slate-300 hover:text-white transition-colors shrink-0 flex items-center gap-2"
                 >
-                  <span className="text-red-400">●</span>
+                  <span className="text-[#F97316]">●</span>
                   {title}
                 </Link>
               )

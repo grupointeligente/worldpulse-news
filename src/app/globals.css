@@ -1,20 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --border: #e2e8f0;
+  color-scheme: light;
+
+  --wp-bg: #F6F7F9;
+  --wp-surface: #FFFFFF;
+  --wp-ink: #111827;
+  --wp-muted: #667085;
+  --wp-border: #E5E7EB;
+  --wp-header: #101828;
+  --wp-header-soft: #344054;
+  --wp-brand: #F97316;
+  --wp-brand-strong: #EA580C;
+  --wp-urgent: #DC2626;
+  --wp-shadow: 0 4px 24px rgb(16 24 40 / 6%);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--wp-bg);
+  color: var(--wp-ink);
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
+
+:focus-visible {
+  outline: 3px solid var(--wp-brand);
+  outline-offset: 2px;
+}
+
+a, button { -webkit-tap-highlight-color: transparent; }
 
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(16px); }
@@ -28,18 +43,34 @@ body {
 }
 .breaking-pulse { animation: pulse-red 1.5s ease-in-out infinite; }
 
-.news-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-.news-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.08); }
+.news-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.news-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--wp-shadow);
+  border-color: #D0D5DD;
+}
 
 .article-body p { margin-bottom: 1.25rem; }
 .article-body h2 { font-size: 1.5rem; font-weight: 700; margin: 2rem 0 1rem; }
 .article-body blockquote {
-  border-left: 4px solid #e2e8f0;
+  border-left: 4px solid var(--wp-border);
   padding-left: 1.25rem;
-  color: #64748b;
+  color: var(--wp-muted);
   font-style: italic;
   margin: 1.5rem 0;
 }
 
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

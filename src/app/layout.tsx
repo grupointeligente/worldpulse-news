@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 
 const siteName = process.env.NEXT_PUBLIC_SITE_NAME || 'WorldPulse'
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://worldpulse.news'
@@ -31,11 +34,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning className={inter.variable}>
       <head>
-        <meta name="theme-color" content="#ffffff" />
+        <meta name="theme-color" content="#101828" />
       </head>
-      <body className="min-h-screen flex flex-col bg-white text-slate-900">
+      <body className="min-h-screen flex flex-col bg-[#F6F7F9] text-[#111827]">
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />

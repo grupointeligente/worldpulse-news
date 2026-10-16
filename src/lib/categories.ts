@@ -1,17 +1,28 @@
 // Cache estático das categorias (evita query extra em todo render)
+// Paleta "WorldPulse Next": cor forte (etiquetas/indicadores), tint (fundo claro), deep (texto sobre tint)
 export const CATEGORIES = [
-  { slug: 'mundo',          name_pt: 'Mundo',          name_en: 'World',          color: '#ef4444', icon: '🌍', sort_order: 1 },
-  { slug: 'politica',       name_pt: 'Política',        name_en: 'Politics',       color: '#8b5cf6', icon: '🏛️',  sort_order: 2 },
-  { slug: 'economia',       name_pt: 'Economia',        name_en: 'Economy',        color: '#10b981', icon: '💰', sort_order: 3 },
-  { slug: 'tecnologia',     name_pt: 'Tecnologia',      name_en: 'Technology',     color: '#3b82f6', icon: '💻', sort_order: 4 },
-  { slug: 'ciencia',        name_pt: 'Ciência',         name_en: 'Science',        color: '#6366f1', icon: '🔬', sort_order: 5 },
-  { slug: 'saude',          name_pt: 'Saúde',           name_en: 'Health',         color: '#14b8a6', icon: '🏥', sort_order: 6 },
-  { slug: 'esportes',       name_pt: 'Esportes',        name_en: 'Sports',         color: '#f97316', icon: '⚽', sort_order: 7 },
-  { slug: 'entretenimento', name_pt: 'Entretenimento',  name_en: 'Entertainment',  color: '#ec4899', icon: '🎬', sort_order: 8 },
+  { slug: 'mundo',          name_pt: 'Mundo',          name_en: 'World',          color: '#2563EB', tint: '#DBEAFE', deep: '#1D4ED8', icon: '🌍', sort_order: 1 },
+  { slug: 'politica',       name_pt: 'Política',        name_en: 'Politics',       color: '#DC2626', tint: '#FEE2E2', deep: '#B91C1C', icon: '🏛️',  sort_order: 2 },
+  { slug: 'economia',       name_pt: 'Economia',        name_en: 'Economy',        color: '#059669', tint: '#D1FAE5', deep: '#047857', icon: '💰', sort_order: 3 },
+  { slug: 'tecnologia',     name_pt: 'Tecnologia',      name_en: 'Technology',     color: '#7C3AED', tint: '#EDE9FE', deep: '#6D28D9', icon: '💻', sort_order: 4 },
+  { slug: 'ciencia',        name_pt: 'Ciência',         name_en: 'Science',        color: '#0891B2', tint: '#CFFAFE', deep: '#0E7490', icon: '🔬', sort_order: 5 },
+  { slug: 'saude',          name_pt: 'Saúde',           name_en: 'Health',         color: '#DB2777', tint: '#FCE7F3', deep: '#BE185D', icon: '🏥', sort_order: 6 },
+  { slug: 'esportes',       name_pt: 'Esportes',        name_en: 'Sports',         color: '#D97706', tint: '#FEF3C7', deep: '#92400E', icon: '⚽', sort_order: 7 },
+  { slug: 'entretenimento', name_pt: 'Entretenimento',  name_en: 'Entertainment',  color: '#9333EA', tint: '#F3E8FF', deep: '#7E22CE', icon: '🎬', sort_order: 8 },
 ]
 
 export function getCategoryBySlug(slug: string) {
   return CATEGORIES.find(c => c.slug === slug)
+}
+
+// Tons da editoria com fallback neutro — use para etiquetas/badges
+export function getCategoryTones(slug?: string | null) {
+  const cat = slug ? getCategoryBySlug(slug) : undefined
+  return {
+    color: cat?.color || '#2563EB',
+    tint: cat?.tint || '#E5E7EB',
+    deep: cat?.deep || '#374151',
+  }
 }
 
 export function getCategoryLabel(slug: string, lang: 'pt' | 'en') {

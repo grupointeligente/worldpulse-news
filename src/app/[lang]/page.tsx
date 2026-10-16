@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { createServerClient } from '@/lib/supabase'
-import { CATEGORIES, type Lang } from '@/lib/categories'
+import Link from 'next/link'
+import { CATEGORIES, formatTimeAgo, type Lang } from '@/lib/categories'
 import ArticleCard from '@/components/news/ArticleCard'
 import CategorySection from '@/components/news/CategorySection'
 import TickerBar from '@/components/news/TickerBar'
@@ -79,6 +80,17 @@ async function getHomeData(lang: Lang) {
     .order('published_at', { ascending: false })
     .limit(24)
 
+  // Mais lidas: views reais dos últimos 7 dias
+  const { data: mostReadRaw } = await supabase
+    .from('articles_with_stats')
+    .select('*')
+    .not('image_url', 'is', null)
+    .gte('published_at', d7)
+    .order('view_count', { ascending: false })
+    .order('relevance_score', { ascending: false })
+    .limit(5)
+  const mostRead = ((mostReadRaw || []) as Article[])
+
   const featuredIds = new Set(featured.slice(0, 4).map(a => a.id))
   const latest = ((latestRaw || []) as Article[]).filter(a => !featuredIds.has(a.id))
 
@@ -101,6 +113,7 @@ async function getHomeData(lang: Lang) {
     featured,
     breaking,
     latest,
+    mostRead,
     categoryArticles,
   }
 }
@@ -110,7 +123,8 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
   if (rawLang !== 'pt' && rawLang !== 'en') notFound()
   const lang = rawLang as Lang
 
-  const { featured, breaking, latest, categoryArticles } = await getHomeData(lang)
+  const { featured, breaking, latest, mostRead, categoryArticles } = await getHomeData(lang)
+  const hasViews = mostRead.some(a => (a.view_count || 0) > 0)
 
   const isPt = lang === 'pt'
 
@@ -167,19 +181,54 @@ export default async function HomePage({ params }: { params: Promise<{ lang: str
               </section>
             )}
 
-            {/* Últimas notícias */}
+            {/* Últimas notícias + Mais lidas */}
             {latest.length > 0 && (
               <section className="mb-10">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-1 h-6 rounded-full bg-red-600" />
-                  <h2 className="text-xl font-black text-slate-900">
+                  <div className="w-1.5 h-7 rounded-full bg-[#DC2626]" />
+                  <h2 className="text-[22px] font-black tracking-tight text-[#111827]">
                     {isPt ? '⚡ Últimas Notícias' : '⚡ Latest News'}
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {latest.slice(0, 12).map(article => (
-                    <ArticleCard key={article.id} article={article} lang={lang} size="md" />
-                  ))}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                  <div className="lg:col-span-2 grid grid-cols-2 gap-4">
+                    {latest.slice(0, 8).map(article => (
+                      <ArticleCard key={article.id} article={article} lang={lang} size="md" />
+                    ))}
+                  </div>
+
+                  {mostRead.length > 0 && (
+                    <aside className="rounded-2xl border border-[#E5E7EB] bg-white p-5 h-fit lg:sticky lg:top-40">
+                      <div className="flex items-center gap-2.5 mb-3">
+                        <div className="w-1.5 h-6 rounded-full bg-[#F97316]" />
+                        <h2 className="text-lg font-black tracking-tight text-[#111827]">
+                          {hasViews ? (isPt ? '📈 Mais lidas' : '📈 Most read') : (isPt ? '🔥 Em alta' : '🔥 Trending')}
+                        </h2>
+                      </div>
+                      <ol>
+                        {mostRead.map((a, i) => (
+                          <li key={a.id}>
+                            <Link
+                              href={`/${lang}/${a.category_slug || 'mundo'}/${a.slug}`}
+                              className="group flex gap-3 py-3 border-b border-[#F2F4F7] last:border-0 last:pb-0"
+                            >
+                              <span className="text-2xl font-black leading-none text-[#E5E7EB] group-hover:text-[#F97316] transition-colors w-7 shrink-0 pt-0.5">
+                                {i + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <h3 className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-[#EA580C] transition-colors text-[#111827]">
+                                  {isPt ? a.title_pt : a.title_en}
+                                </h3>
+                                <p className="text-[11px] text-[#98A2B3] mt-1">
+                                  {isPt ? a.category_name_pt : a.category_name_en} · {formatTimeAgo(a.published_at || a.created_at, lang)}
+                                </p>
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ol>
+                    </aside>
+                  )}
                 </div>
               </section>
             )}
