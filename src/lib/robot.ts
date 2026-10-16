@@ -158,6 +158,30 @@ function cleanText(text?: string): string {
     .slice(0, 2000)
 }
 
+// ─── Validação de imagem (obrigatória para publicar) ──────────────────────────
+
+async function validateImageUrl(imgUrl: string): Promise<boolean> {
+  const UA = 'Mozilla/5.0 (compatible; WorldPulse/1.0; +https://newsbot-cyan.vercel.app)'
+  try {
+    const c1 = new AbortController()
+    const t1 = setTimeout(() => c1.abort(), 5000)
+    const head = await fetch(imgUrl, { method: 'HEAD', signal: c1.signal, headers: { 'User-Agent': UA } })
+    clearTimeout(t1)
+    if (head.ok && (head.headers.get('content-type') || '').startsWith('image/')) return true
+
+    // Alguns CDNs não suportam HEAD ou omitem content-type — tenta GET leve
+    const c2 = new AbortController()
+    const t2 = setTimeout(() => c2.abort(), 5000)
+    const res = await fetch(imgUrl, { signal: c2.signal, headers: { 'User-Agent': UA, Range: 'bytes=0-2047' } })
+    clearTimeout(t2)
+    const ok = (res.ok || res.status === 206) && (res.headers.get('content-type') || '').startsWith('image/')
+    try { await res.body?.cancel() } catch {}
+    return ok
+  } catch {
+    return false
+  }
+}
+
 // ─── Verificação de duplicata ──────────────────────────────────────────────────
 
 async function isDuplicate(url: string): Promise<boolean> {
@@ -268,6 +292,19 @@ async function processItem(item: RSSItem, source: { id: string; name: string; la
   const title = cleanText(item.title)
   const content = cleanText(item.contentSnippet || item.content || item.title)
 
+  // Imagem obrigatória: resolve e valida ANTES de gastar com a IA
+  const rssImage = extractImage(item)
+  let imageUrl: string | null = null
+  if (rssImage && (await validateImageUrl(rssImage))) imageUrl = rssImage
+  if (!imageUrl) {
+    const ogImage = await extractOgImage(url)
+    if (ogImage && (await validateImageUrl(ogImage))) imageUrl = ogImage
+  }
+  if (!imageUrl) {
+    console.log(`  ⛔ Sem imagem válida — descartado: ${title.slice(0, 60)}`)
+    return null
+  }
+
   console.log(`  Processing: ${title.slice(0, 60)}...`)
 
   // Processa com Claude
@@ -293,13 +330,6 @@ async function processItem(item: RSSItem, source: { id: string; name: string; la
   const autoFeatured = processed.relevance_score >= 9.0  // top artigos entram no destaque
   const status = autoPublish ? 'published' : 'pending'
   const publishedAt = autoPublish ? new Date().toISOString() : null
-
-  // Extrai imagem: tenta RSS primeiro, depois OG tag da página
-  const rssImage = extractImage(item)
-  const imageUrl = rssImage || await extractOgImage(url)
-  if (imageUrl) {
-    console.log(`  Image: ${imageUrl.slice(0, 80)} (${rssImage ? 'rss' : 'og'})`)
-  }
 
   // Salva no Supabase
   const { error } = await supabase.from('articles').insert({

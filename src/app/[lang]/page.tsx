@@ -34,54 +34,73 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 
 async function getHomeData(lang: Lang) {
   const supabase = createServerClient()
+  const h48 = new Date(Date.now() - 48 * 3600 * 1000).toISOString()
+  const d7 = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
 
-  // Featured articles (destaque na homepage)
-  const { data: featuredRaw } = await supabase
+  // Hero: artigos recentes (48h) com imagem, ranqueados por relevância
+  let { data: heroPool } = await supabase
     .from('articles_with_stats')
     .select('*')
-    .eq('featured', true)
-    .order('featured_order', { ascending: true })
-    .limit(5)
+    .not('image_url', 'is', null)
+    .gte('published_at', h48)
+    .order('relevance_score', { ascending: false })
+    .order('published_at', { ascending: false })
+    .limit(8)
 
-  // Breaking news para o ticker
-  const { data: breaking } = await supabase
+  // Fallback: se as 48h renderem pouco, amplia para 7 dias
+  if (!heroPool || heroPool.length < 4) {
+    const { data: wider } = await supabase
+      .from('articles_with_stats')
+      .select('*')
+      .not('image_url', 'is', null)
+      .gte('published_at', d7)
+      .order('relevance_score', { ascending: false })
+      .order('published_at', { ascending: false })
+      .limit(8)
+    if (wider && wider.length > (heroPool?.length || 0)) heroPool = wider
+  }
+  const featured = (heroPool || []) as Article[]
+
+  // Ticker: breaking recente (48h); sem breaking recente, cai nas últimas
+  const { data: breakingRaw } = await supabase
     .from('articles_with_stats')
     .select('*')
     .eq('breaking', true)
+    .not('image_url', 'is', null)
+    .gte('published_at', h48)
     .order('published_at', { ascending: false })
     .limit(10)
 
-  // Últimas notícias (mais artigos para homepage rica)
-  const { data: latest } = await supabase
+  // Últimas notícias (sempre com imagem; exclui as que já estão no hero)
+  const { data: latestRaw } = await supabase
     .from('articles_with_stats')
     .select('*')
+    .not('image_url', 'is', null)
     .order('published_at', { ascending: false })
-    .limit(16)
+    .limit(24)
 
-  // Se não há featured manuais, usa top artigos por relevância como hero
-  let featured = (featuredRaw || []) as Article[]
-  if (featured.length === 0 && latest && latest.length > 0) {
-    featured = [...latest]
-      .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
-      .slice(0, 4) as Article[]
-  }
+  const featuredIds = new Set(featured.slice(0, 4).map(a => a.id))
+  const latest = ((latestRaw || []) as Article[]).filter(a => !featuredIds.has(a.id))
 
-  // Artigos por categoria (mais artigos por seção)
+  const breaking = (breakingRaw && breakingRaw.length > 0 ? breakingRaw : latest.slice(0, 10)) as Article[]
+
+  // Artigos por categoria (sempre com imagem)
   const categoryArticles: Record<string, Article[]> = {}
   for (const cat of CATEGORIES) {
     const { data } = await supabase
       .from('articles_with_stats')
       .select('*')
       .eq('category_slug', cat.slug)
+      .not('image_url', 'is', null)
       .order('published_at', { ascending: false })
       .limit(7)
-    if (data?.length) categoryArticles[cat.slug] = data
+    if (data?.length) categoryArticles[cat.slug] = data as Article[]
   }
 
   return {
     featured,
-    breaking: (breaking || []) as Article[],
-    latest: (latest || []) as Article[],
+    breaking,
+    latest,
     categoryArticles,
   }
 }

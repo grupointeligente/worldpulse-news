@@ -75,6 +75,7 @@ async function getRelated(categorySlug: string, currentSlug: string): Promise<Ar
     .select('*')
     .eq('category_slug', categorySlug)
     .neq('slug', currentSlug)
+    .not('image_url', 'is', null)
     .order('published_at', { ascending: false })
     .limit(8)
   return (data || []) as Article[]
@@ -87,6 +88,7 @@ async function getMoreFromCategory(categorySlug: string, currentSlug: string): P
     .select('*')
     .eq('category_slug', categorySlug)
     .neq('slug', currentSlug)
+    .not('image_url', 'is', null)
     .order('published_at', { ascending: false })
     .range(8, 19) // artigos 9-20 da categoria
   return (data || []) as Article[]
@@ -102,6 +104,7 @@ async function getOtherCategories(categorySlug: string, lang: Lang): Promise<{ c
         .from('articles_with_stats')
         .select('*')
         .eq('category_slug', cat.slug)
+        .not('image_url', 'is', null)
         .order('published_at', { ascending: false })
         .limit(4)
       return { cat, articles: (data || []) as Article[] }

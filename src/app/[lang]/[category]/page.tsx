@@ -52,6 +52,7 @@ async function getCategoryArticles(categorySlug: string): Promise<Article[]> {
     .from('articles_with_stats')
     .select('*')
     .eq('category_slug', categorySlug)
+    .not('image_url', 'is', null)
     .order('published_at', { ascending: false })
     .limit(40)
   return (data || []) as Article[]
@@ -69,6 +70,7 @@ async function getOtherCategoryArticles(
         .from('articles_with_stats')
         .select('*')
         .eq('category_slug', cat.slug)
+        .not('image_url', 'is', null)
         .order('published_at', { ascending: false })
         .limit(4)
       return { cat, articles: (data || []) as Article[] }
