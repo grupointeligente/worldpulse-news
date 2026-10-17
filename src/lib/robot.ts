@@ -225,6 +225,7 @@ RULES:
 7. Tags: 3-6 keywords in English, lowercase.
 8. SEO titles: max 60 chars. Meta descriptions: 150-160 chars.
 9. Slug: English words, no accents, hyphens only.
+10. If the article is about pregnancy, childbirth, breastfeeding, fertility, prenatal or postpartum care, or maternal/infant health: set category_slug to "saude" and ALWAYS include "maternal" among the tags.
 
 Respond ONLY with valid JSON, no markdown, no explanation.`
 

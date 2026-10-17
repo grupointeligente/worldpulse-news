@@ -6,6 +6,7 @@ import { createServerClient } from '@/lib/supabase'
 import { CATEGORIES, getCategoryBySlug, formatTimeAgo, type Lang } from '@/lib/categories'
 import ArticleCard from '@/components/news/ArticleCard'
 import ViewTracker from '@/components/news/ViewTracker'
+import MaternaBanner from '@/components/promo/MaternaBanner'
 import type { Article } from '@/lib/supabase'
 import { ExternalLink, Clock, Globe, ChevronRight } from 'lucide-react'
 
@@ -135,6 +136,7 @@ export default async function ArticlePage({
   const cat = getCategoryBySlug(category)
 
   const isPt = lang === 'pt'
+  const isSaude = (article.category_slug || category) === 'saude'
   const title = isPt ? article.title_pt : article.title_en
   const summary = isPt ? article.summary_pt : article.summary_en
   const catName = isPt ? article.category_name_pt : article.category_name_en
@@ -269,6 +271,7 @@ export default async function ArticlePage({
         {/* Sidebar */}
         <aside className="lg:col-span-1">
           <div className="sticky top-28 space-y-6">
+            {isSaude && <MaternaBanner variant="sidebar" lang={lang} />}
             {/* Related articles */}
             {related.length > 0 && (
               <div>
@@ -301,6 +304,13 @@ export default async function ArticlePage({
           </div>
         </aside>
       </div>
+
+      {/* ── Banner Saúde Materna (fim do artigo) ───────────── */}
+      {isSaude && (
+        <div className="mt-10">
+          <MaternaBanner variant="inline" lang={lang} />
+        </div>
+      )}
 
       {/* ── Mais da mesma categoria ─────────────────────────── */}
       {moreFromCategory.length > 0 && (

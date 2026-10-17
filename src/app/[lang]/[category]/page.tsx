@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { createServerClient } from '@/lib/supabase'
 import { CATEGORIES, getCategoryBySlug, type Lang } from '@/lib/categories'
 import ArticleCard from '@/components/news/ArticleCard'
+import MaternaBanner from '@/components/promo/MaternaBanner'
 import type { Article } from '@/lib/supabase'
 import { ChevronRight } from 'lucide-react'
 
@@ -58,6 +59,19 @@ async function getCategoryArticles(categorySlug: string): Promise<Article[]> {
   return (data || []) as Article[]
 }
 
+async function getMaternalArticles(): Promise<Article[]> {
+  const supabase = createServerClient()
+  const { data } = await supabase
+    .from('articles_with_stats')
+    .select('*')
+    .eq('category_slug', 'saude')
+    .contains('tags', ['maternal'])
+    .not('image_url', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(8)
+  return (data || []) as Article[]
+}
+
 async function getOtherCategoryArticles(
   excludeSlug: string,
   lang: Lang
@@ -91,10 +105,16 @@ export default async function CategoryPage({
   const cat = getCategoryBySlug(category)
   if (!cat) notFound()
 
-  const [articles, otherSections] = await Promise.all([
+  const isSaude = category === 'saude'
+  const [articlesRaw, otherSections, maternalArticles] = await Promise.all([
     getCategoryArticles(category),
     getOtherCategoryArticles(category, lang),
+    isSaude ? getMaternalArticles() : Promise.resolve([] as Article[]),
   ])
+
+  // Na editoria Saúde, a seção materna tem espaço próprio — evita duplicar no grid geral
+  const maternalIds = new Set(maternalArticles.map(a => a.id))
+  const articles = isSaude ? articlesRaw.filter(a => !maternalIds.has(a.id)) : articlesRaw
 
   const isPt = lang === 'pt'
   const catName = isPt ? cat.name_pt : cat.name_en
@@ -128,6 +148,30 @@ export default async function CategoryPage({
           )}
         </div>
       </div>
+
+      {/* ── Saúde Materna: banner + destaque (50% da editoria) ── */}
+      {isSaude && (
+        <>
+          <div className="mb-8">
+            <MaternaBanner variant="hero" lang={lang} />
+          </div>
+          {maternalArticles.length > 0 && (
+            <section className="mb-10">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-1.5 h-7 rounded-full bg-[#DB2777]" />
+                <h2 className="text-[22px] font-black tracking-tight text-[#111827]">
+                  {isPt ? '🤰 Saúde Materna' : '🤰 Maternal Health'}
+                </h2>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {maternalArticles.map(a => (
+                  <ArticleCard key={a.id} article={a} lang={lang} size="md" />
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
 
       {articles.length === 0 ? (
         <div className="text-center py-20">
@@ -201,6 +245,13 @@ export default async function CategoryPage({
                 ))}
               </div>
             </section>
+          )}
+
+          {/* ── Banner Saúde Materna (meio de página) ─────── */}
+          {isSaude && (
+            <div className="mb-10">
+              <MaternaBanner variant="inline" lang={lang} />
+            </div>
           )}
 
           {/* ── Outras editorias ──────────────────────────── */}
